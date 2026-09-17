@@ -10,6 +10,10 @@ on:
       - main
 
 jobs:
+
+  # ==============================
+  # BUILD, TEST AND PUSH
+  # ==============================
   build-test-push:
 
     runs-on: ubuntu-latest
@@ -48,3 +52,39 @@ jobs:
         run: |
           docker push manojwip/ga_demo:${{ github.sha }}
           docker push manojwip/ga_demo:latest
+
+
+  # ==============================
+  # DEPLOY TO EC2
+  # ==============================
+  deploy-to-ec2:
+
+    needs: build-test-push
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Deploying application..."
+
+            docker pull manojwip/ga_demo:latest
+
+            docker stop ga_demo || true
+            docker rm ga_demo || true
+
+            docker run -d \
+              --name ga_demo \
+              -p 5000:5000 \
+              --restart unless-stopped \
+              manojwip/ga_demo:latest
+
+            echo "Deployment completed!"
+
+            docker ps
