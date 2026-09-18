@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask
 
 app = Flask(__name__)
 
@@ -12,7 +12,7 @@ def home():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>DevOps CI/CD Demo</title>
+    <title>GitHub Actions CI/CD Demo</title>
 
     <style>
         * {
@@ -177,7 +177,7 @@ def home():
 
         <section class="hero">
 
-            <h1>🚀 <span>DevOps</span> CI/CD Demo</h1>
+            <h1>🚀 <span>GitHub Actions</span> CI/CD Demo</h1>
 
             <p>
                 Flask Application deployed using
@@ -303,15 +303,9 @@ def home():
 
 
 @app.route("/health")
+@app.route("/health")
 def health():
-    return jsonify(
-        {
-            "status": "healthy",
-            "application": "GA Demo",
-            "service": "Flask",
-            "message": "Application is running successfully"
-        }
-    )
+    return "OK"
 
 
 if __name__ == "__main__":
