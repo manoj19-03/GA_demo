@@ -305,7 +305,7 @@ def home():
 @app.route("/health")
 @app.route("/health")
 def health():
-    return "OK"
+    return "Jalabala! The application is healthy and running smoothly."
 
 
 if __name__ == "__main__":
