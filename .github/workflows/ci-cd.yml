@@ -1,90 +1,211 @@
+# Name of the GitHub Actions workflow
 name: CI-CD Pipeline
 
+
+# ============================================================
+# WORKFLOW TRIGGERS
+# ============================================================
+
 on:
+
+  # Run the workflow whenever code is pushed to main
   push:
     branches:
       - main
 
+  # Run the workflow when a Pull Request is created/updated
+  # targeting the main branch
   pull_request:
     branches:
       - main
 
+
+# ============================================================
+# JOBS
+# ============================================================
+
 jobs:
 
-  # ==============================
-  # BUILD, TEST AND PUSH
-  # ==============================
+
+  # ============================================================
+  # BUILD, TEST AND PUSH JOB
+  # ============================================================
+
   build-test-push:
 
+    # GitHub provides a temporary Ubuntu machine to run this job
     runs-on: ubuntu-latest
 
     steps:
 
+      # Download/checkout the repository code into the runner
       - name: Checkout source code
         uses: actions/checkout@v4
 
+
+      # Install/configure Python on the GitHub runner
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
+          # Use Python version 3.12
           python-version: "3.12"
 
+
+      # Install the Python packages required by the application
       - name: Install dependencies
         run: |
+
+          # Upgrade pip to the latest version
           python -m pip install --upgrade pip
+
+          # Install all packages listed in requirements.txt
           pip install -r requirements.txt
 
-      - name: Run tests
-        run: pytest
 
+      # Run automated tests
+      - name: Run tests
+        run: |
+
+          # Execute pytest and run the application's test cases
+          pytest
+
+
+      # ========================================================
+      # DOCKER HUB LOGIN
+      # ========================================================
+
+      # Login to Docker Hub using GitHub Secrets
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
+
+          # Docker Hub username stored in GitHub Secrets
           username: ${{ secrets.DOCKERHUB_USERNAME }}
+
+          # Docker Hub access token stored in GitHub Secrets
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+      # ========================================================
+      # BUILD DOCKER IMAGE
+      # ========================================================
 
       - name: Build Docker image
         run: |
+
+          # Build Docker image using the Dockerfile in the current directory
+          #
+          # First tag:
+          # github.sha = unique Git commit ID
+          # Example:
+          # manojwip/ga_demo:a81c72e...
+          #
+          # Second tag:
+          # latest = latest application version
           docker build \
             -t manojwip/ga_demo:${{ github.sha }} \
             -t manojwip/ga_demo:latest .
 
+
+      # ========================================================
+      # PUSH DOCKER IMAGE TO DOCKER HUB
+      # ========================================================
+
       - name: Push Docker image
         run: |
+
+          # Push the image with the unique Git commit SHA
           docker push manojwip/ga_demo:${{ github.sha }}
+
+          # Push/update the latest image tag
           docker push manojwip/ga_demo:latest
 
 
-  # ==============================
-  # DEPLOY TO EC2
-  # ==============================
+
+  # ============================================================
+  # DEPLOY TO EC2 JOB
+  # ============================================================
+
   deploy-to-ec2:
 
+    # Run this job only after build-test-push succeeds
     needs: build-test-push
 
+    # Use a temporary Ubuntu runner
     runs-on: ubuntu-latest
 
     steps:
 
+
+      # ========================================================
+      # CONNECT TO EC2 USING SSH
+      # ========================================================
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.2.0
+
         with:
+
+          # EC2 public IP address stored in GitHub Secrets
           host: ${{ secrets.EC2_HOST }}
+
+          # EC2 username, for example: ubuntu
           username: ${{ secrets.EC2_USERNAME }}
+
+          # Private SSH key stored securely in GitHub Secrets
           key: ${{ secrets.EC2_SSH_KEY }}
+
+
+          # ====================================================
+          # COMMANDS EXECUTED ON THE EC2 SERVER
+          # ====================================================
+
           script: |
+
+            # Display deployment message
             echo "Deploying application..."
 
+
+            # Pull the latest Docker image from Docker Hub
             docker pull manojwip/ga_demo:latest
 
+
+            # Stop the existing container
+            #
+            # "|| true" means:
+            # If the container doesn't exist, don't fail the deployment
             docker stop ga_demo || true
+
+
+            # Remove the old container
+            #
+            # Again, "|| true" prevents failure if the container
+            # doesn't already exist
             docker rm ga_demo || true
 
+
+            # Start a new container using the latest Docker image
             docker run -d \
+
+              # Give the container the name "ga_demo"
               --name ga_demo \
+
+              # Map EC2 port 5000 to container port 5000
+              # EC2:5000  --->  Container:5000
               -p 5000:5000 \
+
+              # Automatically restart the container if it crashes
+              # or the Docker service/server restarts
+              # unless it was explicitly stopped
               --restart unless-stopped \
+
+              # Docker image to run
               manojwip/ga_demo:latest
 
+
+            # Display deployment completion message
             echo "Deployment completed!"
 
+
+            # Show currently running Docker containers
             docker ps
